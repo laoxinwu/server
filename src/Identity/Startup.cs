@@ -9,11 +9,14 @@ using Bit.Core.SecretsManager.Repositories;
 using Bit.Core.SecretsManager.Repositories.Noop;
 using Bit.Core.Settings;
 using Bit.Core.Utilities;
+using Bit.Identity.HealthChecks;
 using Bit.Identity.Utilities;
 using Bit.SharedWeb.Swagger;
 using Bit.SharedWeb.Utilities;
 using Duende.IdentityServer.Services;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.OpenApi.Models;
 
@@ -149,6 +152,12 @@ public class Startup
         services.AddCoreLocalizationServices();
         services.AddBillingOperations();
 
+        // Add health checks services
+        services.AddHealthChecks()
+            .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "ready", "live" })
+            .AddCheck<DatabaseConnectionHealthCheck>("database", tags: new[] { "ready", "startup" })
+            .AddCheck<IdentityServerHealthCheck>("identityserver", tags: new[] { "ready" });
+
         // TODO: Remove when OrganizationUser methods are moved out of OrganizationService, this noop dependency should
         // TODO: no longer be required - see PM-1880
         services.AddScoped<IServiceAccountRepository, NoopServiceAccountRepository>();
@@ -236,7 +245,25 @@ public class Startup
         app.UseIdentityServer();
 
         // Add Mvc stuff
-        app.UseEndpoints(endpoints => endpoints.MapDefaultControllerRoute());
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("ready")
+            });
+
+            endpoints.MapHealthChecks("/health/live", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("live")
+            });
+
+            endpoints.MapHealthChecks("/health/startup", new HealthCheckOptions
+            {
+                Predicate = check => check.Tags.Contains("startup")
+            });
+
+            endpoints.MapDefaultControllerRoute();
+        });
 
         // Log startup
         logger.LogInformation(Constants.BypassFiltersEventId, globalSettings.ProjectName + " started.");

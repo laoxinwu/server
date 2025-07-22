@@ -6,6 +6,9 @@ FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 # Docker buildx supplies the value for this arg
 ARG TARGETPLATFORM
 
+# NuGet Package Server
+ARG NUGET_SOURCE=https://api.nuget.org/v3/index.json
+
 # Determine proper runtime value for .NET
 # We put the value in a file to be read by later layers.
 RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
@@ -23,7 +26,7 @@ COPY . ./
 
 # Restore project dependencies and tools
 WORKDIR /source/src/Notifications
-RUN . /tmp/rid.txt && dotnet restore -r $RID
+RUN . /tmp/rid.txt && dotnet restore -r $RID --source ${NUGET_SOURCE}
 
 # Build project
 RUN . /tmp/rid.txt && dotnet publish \
