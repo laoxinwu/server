@@ -75,6 +75,57 @@ public class OrganizationInviteLinksControllerTests
     }
 
     [Theory, BitAutoData]
+    public async Task Get_WhenLinkExists_ReturnsOkWithModel(
+        Guid orgId,
+        OrganizationInviteLink inviteLink,
+        SutProvider<OrganizationInviteLinksController> sutProvider)
+    {
+        inviteLink.OrganizationId = orgId;
+        inviteLink.AllowedDomains = "[\"acme.com\"]";
+
+        sutProvider.GetDependency<IGetOrganizationInviteLinkQuery>()
+            .GetAsync(orgId)
+            .Returns(new CommandResult<OrganizationInviteLink>(inviteLink));
+
+        var result = await sutProvider.Sut.Get(orgId);
+
+        var okResult = Assert.IsType<Ok<OrganizationInviteLinkResponseModel>>(result);
+        Assert.NotNull(okResult.Value);
+        Assert.Equal(inviteLink.Id, okResult.Value.Id);
+        Assert.Equal(orgId, okResult.Value.OrganizationId);
+    }
+
+    [Theory, BitAutoData]
+    public async Task Get_WhenNoLinkExists_ReturnsNotFound(
+        Guid orgId,
+        SutProvider<OrganizationInviteLinksController> sutProvider)
+    {
+        sutProvider.GetDependency<IGetOrganizationInviteLinkQuery>()
+            .GetAsync(orgId)
+            .Returns(new CommandResult<OrganizationInviteLink>(new InviteLinkNotFound()));
+
+        var result = await sutProvider.Sut.Get(orgId);
+
+        var notFoundResult = Assert.IsType<NotFound<Bit.Core.Models.Api.ErrorResponseModel>>(result);
+        Assert.NotNull(notFoundResult.Value);
+    }
+
+    [Theory, BitAutoData]
+    public async Task Get_WhenInviteLinkNotAvailable_Returns400(
+        Guid orgId,
+        SutProvider<OrganizationInviteLinksController> sutProvider)
+    {
+        sutProvider.GetDependency<IGetOrganizationInviteLinkQuery>()
+            .GetAsync(orgId)
+            .Returns(new CommandResult<OrganizationInviteLink>(new InviteLinkNotAvailable()));
+
+        var result = await sutProvider.Sut.Get(orgId);
+
+        var badRequestResult = Assert.IsType<BadRequest<Bit.Core.Models.Api.ErrorResponseModel>>(result);
+        Assert.NotNull(badRequestResult.Value);
+    }
+
+    [Theory, BitAutoData]
     public async Task Create_WithValidationError_Returns400(
         Guid orgId,
         SutProvider<OrganizationInviteLinksController> sutProvider)
